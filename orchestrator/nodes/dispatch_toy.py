@@ -49,12 +49,16 @@ INSTRUCTIONS:
 
     code = call_llm(code_prompt, node="code_generation", temperature=0.1)
     
-    # Strip markdown code blocks if any
-    cleaned_code = code.strip()
-    if cleaned_code.startswith("```"):
-        import re
-        cleaned_code = re.sub(r"^```(?:python)?\s*", "", cleaned_code)
-        cleaned_code = re.sub(r"\s*```$", "", cleaned_code)
+    import re
+    # Robust extraction of Python code from markdown fences
+    match = re.search(r"```(?:python)?\s*\n(.*?)\n\s*```", code, re.DOTALL)
+    if match:
+        cleaned_code = match.group(1).strip()
+    else:
+        cleaned_code = code.strip()
+        if cleaned_code.startswith("```"):
+            cleaned_code = re.sub(r"^```(?:python)?\s*", "", cleaned_code)
+            cleaned_code = re.sub(r"\s*```$", "", cleaned_code)
 
     print(f"[DispatchToy] Code generated ({len(cleaned_code)} chars)")
     print(f"[DispatchToy] Running toy benchmark...")
