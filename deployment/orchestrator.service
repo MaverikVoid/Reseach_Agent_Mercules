@@ -1,0 +1,29 @@
+[Unit]
+Description=Research Idea Evaluator Orchestrator
+After=network.target postgresql.service docker.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+ExecStart=/opt/orchestrator/venv/bin/python -m orchestrator.bot
+WorkingDirectory=/opt/orchestrator
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/orchestrator/.env
+User=orchestrator
+Group=orchestrator
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/orchestrator
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=orchestrator
+
+[Install]
+WantedBy=multi-user.target
