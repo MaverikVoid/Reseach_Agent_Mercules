@@ -27,7 +27,7 @@ def get_pool() -> AsyncConnectionPool:
         logger.info(f"Initializing connection pool for {DATABASE_URL.split('@')[-1]}")
         _pool = AsyncConnectionPool(
             conninfo=DATABASE_URL,
-            kwargs={"autocommit": True, "row_factory": dict_row},
+            kwargs={"autocommit": True, "row_factory": dict_row, "connect_timeout": 2},
             open=False,
         )
     return _pool
@@ -36,8 +36,8 @@ def get_pool() -> AsyncConnectionPool:
 async def init_db() -> None:
     """Initialize database tables, extensions, and checkpointer tables."""
     pool = get_pool()
-    # Ensure pool is opened
-    await pool.open()
+    # Ensure pool is opened with a fast 2-second timeout
+    await pool.open(timeout=2.0)
 
     async with pool.connection() as conn:
         logger.info("Initializing database schema...")
