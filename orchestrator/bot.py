@@ -12,7 +12,10 @@ Usage:
 from __future__ import annotations
 
 import logging
+import os
 import sys
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # Reconfigure stdout/stderr to handle UTF-8 / emojis on Windows without crashing
 if hasattr(sys.stdout, "reconfigure"):
@@ -94,8 +97,29 @@ async def post_shutdown(application) -> None:
         logger.info("Database connection pool closed.")
 
 
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Research Agent Bot is running!")
+
+    def log_message(self, format, *args):
+        # Suppress logging HTTP requests to clean up logs
+        return
+
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 7860))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    logger.info(f"Starting background health-check HTTP server on port {port}...")
+    server.serve_forever()
+
+
 def main():
     """Build graph, wire Telegram handlers, start polling."""
+    # Start the background HTTP health check server for Hugging Face Spaces / Render deployment
+    threading.Thread(target=run_dummy_server, daemon=True).start()
 
     # ── Validate config ────────────────────────────────────────────────
     if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "PASTE_YOUR_BOT_TOKEN_HERE":
