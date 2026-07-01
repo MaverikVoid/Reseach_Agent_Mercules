@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 # ── Load .env from project root ────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(PROJECT_ROOT / ".env", override=True)
+load_dotenv(PROJECT_ROOT / ".env", override=False)
 
 # ── API Keys ───────────────────────────────────────────────────────────
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
