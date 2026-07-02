@@ -22,6 +22,7 @@ DATABASE_URL: str = os.getenv(
 )
 NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", "")
 SEMANTIC_SCHOLAR_API_KEY: str = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "")
+HUGGINGFACEHUB_API_TOKEN: str = os.getenv("HUGGINGFACEHUB_API_TOKEN", "")
 
 # ── OpenRouter base URL ────────────────────────────────────────────────
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -51,6 +52,19 @@ MODEL_ROUTING: dict[str, str] = {
 # ── Embedding settings ─────────────────────────────────────────────────
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
+EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "")
+
+# Auto-detect Render deployment to avoid PyTorch loading and OOMs
+if not EMBEDDING_PROVIDER:
+    if "RENDER" in os.environ:
+        if os.getenv("HUGGINGFACEHUB_API_TOKEN"):
+            EMBEDDING_PROVIDER = "huggingface"
+        elif os.getenv("NVIDIA_API_KEY"):
+            EMBEDDING_PROVIDER = "nvidia"
+        else:
+            EMBEDDING_PROVIDER = "fallback"
+    else:
+        EMBEDDING_PROVIDER = "local"
 
 # ── Literature search ──────────────────────────────────────────────────
 MAX_PAPERS = 20  # combined arXiv + Semantic Scholar results

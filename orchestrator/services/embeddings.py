@@ -11,6 +11,10 @@ from __future__ import annotations
 import logging
 import numpy as np
 from typing import Optional
+import requests
+from openai import OpenAI
+
+from orchestrator.config import EMBEDDING_PROVIDER
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +41,99 @@ def _get_model():
     return _model
 
 
+def _embed_hf(text: str) -> Optional[np.ndarray]:
+    """Call Hugging Face Inference API for all-MiniLM-L6-v2."""
+    from orchestrator.config import HUGGINGFACEHUB_API_TOKEN
+    if not HUGGINGFACEHUB_API_TOKEN:
+        logger.warning("HUGGINGFACEHUB_API_TOKEN not set, falling back to local/fallback")
+        return None
+        
+    api_url = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+    headers = {"Authorization": f"Bearer {HUGGINGFACEHUB_API_TOKEN}"}
+    
+    try:
+        response = requests.post(api_url, headers=headers, json={"inputs": text}, timeout=15)
+        if response.status_code == 200:
+            res_data = response.json()
+            if isinstance(res_data, list):
+                return np.array(res_data, dtype=np.float32)
+        logger.warning(f"HF Inference API error {response.status_code}: {response.text}")
+    except Exception as e:
+        logger.error(f"HF Inference API connection error: {e}")
+    return None
+
+
+def _embed_batch_hf(texts: list[str]) -> Optional[np.ndarray]:
+    """Call Hugging Face Inference API for a batch of texts."""
+    from orchestrator.config import HUGGINGFACEHUB_API_TOKEN
+    if not HUGGINGFACEHUB_API_TOKEN:
+        return None
+        
+    api_url = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+    headers = {"Authorization": f"Bearer {HUGGINGFACEHUB_API_TOKEN}"}
+    
+    try:
+        response = requests.post(api_url, headers=headers, json={"inputs": texts}, timeout=20)
+        if response.status_code == 200:
+            res_data = response.json()
+            if isinstance(res_data, list) and len(res_data) > 0 and isinstance(res_data[0], list):
+                return np.array(res_data, dtype=np.float32)
+        logger.warning(f"HF Inference API error {response.status_code}: {response.text}")
+    except Exception as e:
+        logger.error(f"HF Inference API connection error: {e}")
+    return None
+
+
+def _embed_nvidia(text: str) -> Optional[np.ndarray]:
+    """Call NVIDIA Embeddings API, slice to 384 dimensions and normalize."""
+    from orchestrator.config import NVIDIA_API_KEY
+    if not NVIDIA_API_KEY:
+        logger.warning("NVIDIA_API_KEY not set, falling back to local/fallback")
+        return None
+        
+    client = OpenAI(
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=NVIDIA_API_KEY
+    )
+    
+    try:
+        response = client.embeddings.create(
+            input=[text],
+            model="nvidia/nv-embedqa-e5-v5"
+        )
+        vector = response.data[0].embedding
+        # Slice to 384 dimensions to match DB columns, and normalize
+        vec = np.array(vector[:384], dtype=np.float32)
+        norm = np.linalg.norm(vec)
+        if norm > 0:
+            vec = vec / norm
+        return vec
+    except Exception as e:
+        logger.error(f"NVIDIA Embeddings API error: {e}")
+    return None
+
+
 def embed_text(text: str) -> np.ndarray:
     """
-    Embed a single text string.
-
-    Returns a normalized 384-dimensional vector.
-    Falls back to a hash-based pseudo-embedding if sentence-transformers
-    is not installed.
+    Embed a single text string using the configured provider.
     """
-    model = _get_model()
+    logger.info(f"Embedding text with provider: {EMBEDDING_PROVIDER}")
+    
+    if EMBEDDING_PROVIDER == "huggingface":
+        vector = _embed_hf(text)
+        if vector is not None:
+            return vector
+            
+    elif EMBEDDING_PROVIDER == "nvidia":
+        vector = _embed_nvidia(text)
+        if vector is not None:
+            return vector
 
+    elif EMBEDDING_PROVIDER == "fallback":
+        return _fallback_embed(text)
+
+    # Local loading fallback (for development with PyTorch installed)
+    model = _get_model()
     if model == "fallback":
         return _fallback_embed(text)
 
@@ -57,11 +144,28 @@ def embed_text(text: str) -> np.ndarray:
 def embed_batch(texts: list[str]) -> np.ndarray:
     """
     Embed a batch of texts.
-
-    Returns array of shape (n, 384).
     """
-    model = _get_model()
+    logger.info(f"Embedding batch of {len(texts)} texts with provider: {EMBEDDING_PROVIDER}")
+    
+    if EMBEDDING_PROVIDER == "huggingface":
+        vectors = _embed_batch_hf(texts)
+        if vectors is not None:
+            return vectors
+            
+    elif EMBEDDING_PROVIDER == "nvidia":
+        vectors = []
+        for t in texts:
+            v = _embed_nvidia(t)
+            if v is None:
+                v = _fallback_embed(t)
+            vectors.append(v)
+        return np.array(vectors, dtype=np.float32)
 
+    elif EMBEDDING_PROVIDER == "fallback":
+        return np.array([_fallback_embed(t) for t in texts], dtype=np.float32)
+
+    # Local loading fallback (for development with PyTorch installed)
+    model = _get_model()
     if model == "fallback":
         return np.array([_fallback_embed(t) for t in texts], dtype=np.float32)
 
