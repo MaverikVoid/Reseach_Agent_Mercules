@@ -119,17 +119,35 @@ def embed_text(text: str) -> np.ndarray:
     """
     logger.info(f"Embedding text with provider: {EMBEDDING_PROVIDER}")
     
+    import os
+    is_render = "RENDER" in os.environ
+    
     if EMBEDDING_PROVIDER == "huggingface":
         vector = _embed_hf(text)
         if vector is not None:
             return vector
+        if is_render:
+            logger.warning("HF embedding failed on Render. Trying NVIDIA backup.")
+            vector = _embed_nvidia(text)
+            if vector is not None:
+                return vector
             
     elif EMBEDDING_PROVIDER == "nvidia":
         vector = _embed_nvidia(text)
         if vector is not None:
             return vector
+        if is_render:
+            logger.warning("NVIDIA embedding failed on Render. Trying HF backup.")
+            vector = _embed_hf(text)
+            if vector is not None:
+                return vector
 
     elif EMBEDDING_PROVIDER == "fallback":
+        return _fallback_embed(text)
+
+    # On Render, if API failed, NEVER load SentenceTransformer locally to prevent OOM
+    if is_render:
+        logger.error("All API embeddings failed on Render. Using hash-based fallback to prevent OOM.")
         return _fallback_embed(text)
 
     # Local loading fallback (for development with PyTorch installed)
@@ -147,10 +165,22 @@ def embed_batch(texts: list[str]) -> np.ndarray:
     """
     logger.info(f"Embedding batch of {len(texts)} texts with provider: {EMBEDDING_PROVIDER}")
     
+    import os
+    is_render = "RENDER" in os.environ
+
     if EMBEDDING_PROVIDER == "huggingface":
         vectors = _embed_batch_hf(texts)
         if vectors is not None:
             return vectors
+        if is_render:
+            logger.warning("HF batch embedding failed on Render. Trying NVIDIA backup.")
+            vectors = []
+            for t in texts:
+                v = _embed_nvidia(t)
+                if v is None:
+                    v = _fallback_embed(t)
+                vectors.append(v)
+            return np.array(vectors, dtype=np.float32)
             
     elif EMBEDDING_PROVIDER == "nvidia":
         vectors = []
@@ -162,6 +192,11 @@ def embed_batch(texts: list[str]) -> np.ndarray:
         return np.array(vectors, dtype=np.float32)
 
     elif EMBEDDING_PROVIDER == "fallback":
+        return np.array([_fallback_embed(t) for t in texts], dtype=np.float32)
+
+    # On Render, if API failed, NEVER load SentenceTransformer locally to prevent OOM
+    if is_render:
+        logger.error("All API batch embeddings failed on Render. Using hash-based fallback to prevent OOM.")
         return np.array([_fallback_embed(t) for t in texts], dtype=np.float32)
 
     # Local loading fallback (for development with PyTorch installed)
