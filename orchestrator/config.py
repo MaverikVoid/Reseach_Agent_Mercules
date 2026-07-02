@@ -21,6 +21,7 @@ DATABASE_URL: str = os.getenv(
     "postgresql://orchestrator:password@localhost:5432/research_ideas",
 )
 NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", "")
+SEMANTIC_SCHOLAR_API_KEY: str = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "")
 
 # ── OpenRouter base URL ────────────────────────────────────────────────
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"

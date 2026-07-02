@@ -13,7 +13,7 @@ from orchestrator.state import IdeaState
 from orchestrator.services.llm import call_llm
 from orchestrator.services.literature import search_papers
 from orchestrator.services.embeddings import embed_text, embed_batch, rank_by_similarity
-from orchestrator.config import MAX_PAPERS
+from orchestrator.config import MAX_PAPERS, SEMANTIC_SCHOLAR_API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,11 @@ def lit_search_node(state: IdeaState) -> dict:
     print(f"\n[LitSearch] Searching literature for: {raw_idea[:80]}...")
 
     # ── Search real APIs ───────────────────────────────────────────────
-    papers = search_papers(raw_idea, max_results=MAX_PAPERS)
+    papers = search_papers(
+        raw_idea,
+        max_results=MAX_PAPERS,
+        semantic_scholar_api_key=SEMANTIC_SCHOLAR_API_KEY,
+    )
 
     if not papers:
         logger.warning("[LitSearch] No papers found from APIs, using fallback")
