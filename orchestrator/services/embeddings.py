@@ -84,7 +84,7 @@ def _embed_batch_hf(texts: list[str]) -> Optional[np.ndarray]:
     return None
 
 
-def _embed_nvidia(text: str) -> Optional[np.ndarray]:
+def _embed_nvidia(text: str, input_type: str = "query") -> Optional[np.ndarray]:
     """Call NVIDIA Embeddings API, slice to 384 dimensions and normalize."""
     from orchestrator.config import NVIDIA_API_KEY
     if not NVIDIA_API_KEY:
@@ -99,7 +99,8 @@ def _embed_nvidia(text: str) -> Optional[np.ndarray]:
     try:
         response = client.embeddings.create(
             input=[text],
-            model="nvidia/nv-embedqa-e5-v5"
+            model="nvidia/nv-embedqa-e5-v5",
+            extra_body={"input_type": input_type}
         )
         vector = response.data[0].embedding
         # Slice to 384 dimensions to match DB columns, and normalize
@@ -128,12 +129,12 @@ def embed_text(text: str) -> np.ndarray:
             return vector
         if is_render:
             logger.warning("HF embedding failed on Render. Trying NVIDIA backup.")
-            vector = _embed_nvidia(text)
+            vector = _embed_nvidia(text, input_type="query")
             if vector is not None:
                 return vector
             
     elif EMBEDDING_PROVIDER == "nvidia":
-        vector = _embed_nvidia(text)
+        vector = _embed_nvidia(text, input_type="query")
         if vector is not None:
             return vector
         if is_render:
@@ -176,7 +177,7 @@ def embed_batch(texts: list[str]) -> np.ndarray:
             logger.warning("HF batch embedding failed on Render. Trying NVIDIA backup.")
             vectors = []
             for t in texts:
-                v = _embed_nvidia(t)
+                v = _embed_nvidia(t, input_type="passage")
                 if v is None:
                     v = _fallback_embed(t)
                 vectors.append(v)
@@ -185,7 +186,7 @@ def embed_batch(texts: list[str]) -> np.ndarray:
     elif EMBEDDING_PROVIDER == "nvidia":
         vectors = []
         for t in texts:
-            v = _embed_nvidia(t)
+            v = _embed_nvidia(t, input_type="passage")
             if v is None:
                 v = _fallback_embed(t)
             vectors.append(v)
