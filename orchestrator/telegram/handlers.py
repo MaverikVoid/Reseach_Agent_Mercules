@@ -81,7 +81,7 @@ async def get_active_thread(chat_id: int, pool) -> dict | None:
     if pool:
         try:
             async with pool.connection() as conn:
-                row = await conn.execute(
+                cur = await conn.execute(
                     """
                     SELECT thread_id, status, idea_summary 
                     FROM chat_threads 
@@ -90,7 +90,8 @@ async def get_active_thread(chat_id: int, pool) -> dict | None:
                     LIMIT 1
                     """,
                     (chat_id,),
-                ).fetchone()
+                )
+                row = await cur.fetchone()
                 if row:
                     return {
                         "thread_id": row["thread_id"],
@@ -157,7 +158,7 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await start_handler(update, context)
 
 
-async def new_idea_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def new_idea_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, override_idea_text: str = None):
     """Handle /new <idea text> command."""
     graph = context.bot_data.get("graph")
     pool = context.bot_data.get("db_pool")
@@ -166,9 +167,12 @@ async def new_idea_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Extract idea text after /new
-    idea_text = update.message.text
-    if idea_text.startswith("/new"):
-        idea_text = idea_text[4:].strip()
+    if override_idea_text:
+        idea_text = override_idea_text
+    else:
+        idea_text = update.message.text
+        if idea_text.startswith("/new"):
+            idea_text = idea_text[4:].strip()
 
     if not idea_text:
         await update.message.reply_text(
@@ -246,7 +250,7 @@ async def threads_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if pool:
         try:
             async with pool.connection() as conn:
-                rows = await conn.execute(
+                cur = await conn.execute(
                     """
                     SELECT thread_id, status, idea_summary, created_at 
                     FROM chat_threads 
@@ -255,7 +259,8 @@ async def threads_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     LIMIT 10
                     """,
                     (chat_id,),
-                ).fetchall()
+                )
+                rows = await cur.fetchall()
 
                 if not rows:
                     await update.message.reply_text("No threads found. Send a research idea to start!")
@@ -302,7 +307,7 @@ async def switch_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             async with pool.connection() as conn:
                 # Find matching thread_id by prefix
-                row = await conn.execute(
+                cur = await conn.execute(
                     """
                     SELECT thread_id, idea_summary 
                     FROM chat_threads 
@@ -310,7 +315,8 @@ async def switch_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     LIMIT 1
                     """,
                     (chat_id, f"{target_id_prefix}%"),
-                ).fetchone()
+                )
+                row = await cur.fetchone()
 
                 if not row:
                     await update.message.reply_text("❌ Thread not found.")
@@ -431,8 +437,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         "Previous thread complete. Starting new evaluation..."
                     )
                     await delete_active_thread(chat_id, pool, thread_id)
-                    update.message.text = f"/new {user_text}"
-                    await new_idea_handler(update, context)
+                    await new_idea_handler(update, context, override_idea_text=user_text)
 
             except Exception as e:
                 logger.error(f"Error resuming thread: {e}\n{traceback.format_exc()}")
@@ -443,8 +448,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
     else:
         # No active thread — treat as new idea
-        update.message.text = f"/new {user_text}"
-        await new_idea_handler(update, context)
+        await new_idea_handler(update, context, override_idea_text=user_text)
 
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):

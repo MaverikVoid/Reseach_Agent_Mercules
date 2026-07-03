@@ -285,7 +285,7 @@ async def find_similar_ideas(
     """
     # Phase 4 implementation
     async with pool.connection() as conn:
-        rows = await conn.execute(
+        cur = await conn.execute(
             """
             SELECT idea_id, idea_text,
                    1 - (embedding <=> %s::vector) AS similarity
@@ -296,7 +296,8 @@ async def find_similar_ideas(
             """,
             (embedding.tolist(), embedding.tolist(), threshold,
              embedding.tolist(), top_k),
-        ).fetchall()
+        )
+        rows = await cur.fetchall()
 
         return [
             {
