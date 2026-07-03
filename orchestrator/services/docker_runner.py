@@ -56,11 +56,10 @@ def run_in_docker(
     """
     try:
         import docker
-    except ImportError:
-        logger.warning("docker package not installed, using subprocess fallback")
-        return _subprocess_fallback(code, timeout_sec)
-
-    client = docker.from_env()
+        client = docker.from_env()
+    except Exception as e:
+        logger.warning(f"Docker client initialization failed: {e}. Using subprocess fallback.")
+        return _subprocess_fallback(task_spec, code, timeout_sec)
 
     # Create temp directory with the code
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -126,7 +125,7 @@ def run_in_docker(
                 pass
 
 
-def _subprocess_fallback(code: str, timeout_sec: int) -> dict:
+def _subprocess_fallback(task_spec: dict, code: str, timeout_sec: int) -> dict:
     """
     Fallback: run code via subprocess when Docker is not available.
     WARNING: Not sandboxed — only for local development testing.
@@ -134,39 +133,62 @@ def _subprocess_fallback(code: str, timeout_sec: int) -> dict:
     import subprocess
     import time
 
-    logger.warning("Running code WITHOUT Docker sandbox — development only!")
+    logger.warning("Running code WITHOUT Docker sandbox — development/hosted environment fallback!")
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(code)
-        script_path = f.name
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Write the python script
+        code_path = Path(tmpdir) / "run.py"
+        code_path.write_text(code, encoding="utf-8")
 
-    try:
-        start = time.time()
-        result = subprocess.run(
-            ["python", script_path],
-            capture_output=True,
-            text=True,
-            timeout=timeout_sec,
-        )
-        elapsed = time.time() - start
+        # Write the task spec
+        spec_path = Path(tmpdir) / "task_spec.json"
+        spec_path.write_text(json.dumps(task_spec), encoding="utf-8")
 
-        return {
-            "status": "completed" if result.returncode == 0 else "failed",
-            "stdout": result.stdout[:5000],
-            "stderr": result.stderr[:5000],
-            "exit_code": result.returncode,
-            "runtime_seconds": elapsed,
-            "results": {},
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "status": "timeout",
-            "stdout": "",
-            "stderr": f"Timed out after {timeout_sec}s",
-            "exit_code": -1,
-            "results": {},
-        }
-    finally:
-        os.unlink(script_path)
+        # Create output directory
+        output_dir = Path(tmpdir) / "output"
+        output_dir.mkdir()
+
+        try:
+            start = time.time()
+            result = subprocess.run(
+                ["python", str(code_path)],
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec,
+                cwd=tmpdir,  # Run in tempdir so it finds task_spec.json locally
+            )
+            elapsed = time.time() - start
+
+            # Check for results file in output/results.json
+            results = {}
+            results_path = output_dir / "results.json"
+            if results_path.exists():
+                try:
+                    results = json.loads(results_path.read_text(encoding="utf-8"))
+                except Exception as e:
+                    logger.error(f"Failed to parse results.json from subprocess: {e}")
+
+            return {
+                "status": "completed" if result.returncode == 0 else "failed",
+                "stdout": result.stdout[:5000],
+                "stderr": result.stderr[:5000],
+                "exit_code": result.returncode,
+                "runtime_seconds": elapsed,
+                "results": results,
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "status": "timeout",
+                "stdout": "",
+                "stderr": f"Timed out after {timeout_sec}s",
+                "exit_code": -1,
+                "results": {},
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "stdout": "",
+                "stderr": str(e),
+                "exit_code": -1,
+                "results": {},
+            }
