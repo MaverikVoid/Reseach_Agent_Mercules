@@ -22,7 +22,7 @@ The **Research Agent Bot** is a multi-agent system designed to evaluate research
    - The central nervous system of the bot.
    - Manages the Telegram bot interface and user state.
    - Routes tasks through a defined workflow graph (`graph.py`).
-   - Uses OpenRouter for LLM inference (defaults to `meta/llama-3.1-70b-instruct` with an NVIDIA API key, or `openrouter/free` fallback).
+   - Uses OpenRouter for LLM inference (defaults to `meta/llama-3.3-70b-instruct` with an NVIDIA API key, or `openrouter/free` fallback).
 
 2. **Coding Agent (`coding_agent/`)**
    - Handles the actual execution of coding, data tasks, and experiments.
@@ -36,7 +36,7 @@ The **Research Agent Bot** is a multi-agent system designed to evaluate research
 ## 🤖 Models Used
 
 - **Code Generation (Coding Agent)**: `deepseek-ai/DeepSeek-V3.2`
-- **Reasoning & Task Routing (Orchestrator)**: `meta/llama-3.1-70b-instruct` (via OpenRouter)
+- **Reasoning & Task Routing (Orchestrator)**: `meta/llama-3.3-70b-instruct` (via OpenRouter)
 - **Text Embeddings**: `sentence-transformers/all-MiniLM-L6-v2`
 
 ## ⚙️ Setup & Configuration

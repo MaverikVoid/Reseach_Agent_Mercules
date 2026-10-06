@@ -20,7 +20,7 @@ def _get_client_and_model() -> tuple[OpenAI, str]:
             base_url="https://integrate.api.nvidia.com/v1",
             api_key=nv_key
         )
-        model = "meta/llama-3.1-70b-instruct"
+        model = "meta/llama-3.3-70b-instruct"
         return client, model
     elif or_key:
         logger.info("Initializing OpenRouter API Client")
@@ -29,7 +29,7 @@ def _get_client_and_model() -> tuple[OpenAI, str]:
             api_key=or_key,
             default_headers={"X-Title": "Research Identity Service"}
         )
-        model = "meta-llama/llama-3.1-70b-instruct"
+        model = "meta-llama/llama-3.3-70b-instruct"
         return client, model
     else:
         # Fallback to check if env variables exist at call time
@@ -38,10 +38,10 @@ def _get_client_and_model() -> tuple[OpenAI, str]:
         env_or = os.getenv("OPENROUTER_API_KEY", "").strip()
         if env_nv:
             client = OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=env_nv)
-            return client, "meta/llama-3.1-70b-instruct"
+            return client, "meta/llama-3.3-70b-instruct"
         elif env_or:
             client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=env_or, default_headers={"X-Title": "Research Identity Service"})
-            return client, "meta-llama/llama-3.1-70b-instruct"
+            return client, "meta-llama/llama-3.3-70b-instruct"
         raise ValueError("Neither NVIDIA_API_KEY nor OPENROUTER_API_KEY is configured in settings.")
 
 def synthesize_profile(prompt: str, retries: int = 3) -> ResearchProfile:

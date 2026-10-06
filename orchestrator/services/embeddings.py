@@ -99,7 +99,7 @@ def _embed_nvidia(text: str, input_type: str = "query") -> Optional[np.ndarray]:
     try:
         response = client.embeddings.create(
             input=[text],
-            model="nvidia/nv-embedqa-e5-v5",
+            model="nvidia/nv-embed-v1",
             extra_body={"input_type": input_type}
         )
         vector = response.data[0].embedding

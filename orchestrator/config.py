@@ -29,7 +29,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # We dynamically choose the model slug based on whether the user provided an NVIDIA API key
 if NVIDIA_API_KEY:
-    DEFAULT_MODEL = "meta/llama-3.1-70b-instruct"
+    DEFAULT_MODEL = "meta/llama-3.3-70b-instruct"
 else:
     DEFAULT_MODEL = "openrouter/free"
 
